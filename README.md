@@ -1,423 +1,262 @@
-RAG Research Assistant
+# 🔎 RAG Research Assistant
 
-A local-first research assistant that answers questions from your own documents and returns traceable, inline citations.
+### Ask questions about your documents. Get answers backed by sources.
 
-Add PDF, text, or Markdown files to data/documents/, build a local search index, and ask questions from the command line or Streamlit interface. The assistant retrieves the most relevant passages, sends only that context to Google Gemini, and maps each cited claim back to its source file and PDF page where available.
+A document-grounded AI research assistant that transforms PDFs, text files, and Markdown documents into a searchable knowledge base. Powered by **Retrieval-Augmented Generation (RAG), ChromaDB, and Google Gemini**, it retrieves relevant passages and generates answers with traceable citations.
 
-You: What does the report say about renewable energy adoption?
+Instead of relying entirely on a language model's general knowledge, the assistant uses retrieved document content to ground its responses and identifies the source files and PDF pages where available.
 
-Renewable energy adoption grew 18% year over year, driven mainly by
-residential solar capacity additions [1]. Wind power growth remained
-flat because of permitting delays [2].
+---
 
-Sources:
-[1] energy_report_2024.pdf (page 4)
-[2] energy_report_2024.pdf (page 9)
+## ✨ Key Features
 
-Why this project?
+* 📄 **Multi-Format Document Ingestion** — Load PDF, TXT, and Markdown files.
+* 🔍 **Semantic Search** — Retrieve relevant passages using Sentence Transformers embeddings.
+* 🧠 **Grounded AI Responses** — Generate answers using retrieved context with Google Gemini.
+* 📚 **Source-Level Citations** — Link numbered references to original files and PDF page numbers where available.
+* 💾 **Local-First Storage** — Persist documents' search index locally using ChromaDB.
+* 🔄 **Automatic Retrieval Fallback** — Use TF-IDF when Sentence Transformers is unavailable.
+* ⚡ **Incremental Ingestion** — Skip files that have already been indexed during subsequent ingestion runs.
+* 💻 **Dual Interface** — Interact through a command-line interface or a Streamlit web application.
+* 🧪 **Testing Support** — Unit tests for document chunking and core pipeline behavior.
+* ⚙️ **Configurable Pipeline** — Adjust chunk size, overlap, retrieval count, embedding model, and generation settings.
 
-General-purpose language models can answer fluently without showing where their information came from. This project reduces that risk by restricting answer generation to passages retrieved from a document collection and requiring numbered citations for supported claims.
+## 🏗️ System Architecture
 
-Citation numbers provide traceability to the retrieved passages. They do not independently guarantee that the model interpreted a passage correctly, so important conclusions should still be checked against the original source.
-
-Features
-
-Multiple document formats — ingest .pdf, .txt, and .md files.
-
-Page-aware chunking — split documents into overlapping passages while preserving PDF page metadata.
-
-Local retrieval — use Sentence Transformers for semantic embeddings after the initial model download.
-
-Automatic fallback — use TF-IDF retrieval when Sentence Transformers is unavailable.
-
-Persistent index — store the ChromaDB collection on disk with no separate database server.
-
-Grounded generation — instruct Gemini to answer only from retrieved context.
-
-Traceable citations — return inline references such as [1] and a source list containing file names and page numbers.
-
-Idempotent ingestion — skip files that have already been indexed when ingestion is run again.
-
-Two interfaces — use the CLI for scripts and terminal workflows or Streamlit for an interactive web interface.
-
-Test coverage — include unit tests for chunking and core pipeline behavior.
-
-Architecture
-
+```mermaid
 flowchart TD
-    subgraph Indexing
-        A[PDF, TXT, and Markdown] --> B[Load and chunk]
-        B --> C[Create embeddings]
-        C --> D[(Local ChromaDB index)]
-    end
+    A["PDF · TXT · Markdown"] --> B["Document Loader"]
+    B --> C["Chunking & Metadata"]
+    C --> D["Embedding Generation"]
+    D --> E[("Local ChromaDB Index")]
 
-    subgraph Answering
-        E[User question] --> F[Retrieve top-k passages]
-        D --> F
-        F --> G[Build numbered context]
-        G --> H[Generate with Gemini]
-        H --> I[Answer with citations and sources]
-    end
+    F["User Question"] --> G["Passage Retrieval"]
+    E --> G
+    G --> H["Ranked Context & Citations"]
+    H --> I["Google Gemini"]
+    I --> J["Grounded Answer"]
+    J --> K["Inline Citations & Sources"]
 
-The document index and source files remain on your machine. When you ask a question, the retrieved passages and your question are sent to the Gemini API to generate the final answer.
+    L["CLI / Streamlit UI"] <--> F
+    K --> L
+```
 
-Project structure
+**Data flow:** Documents are processed into chunks and indexed locally. When a question is submitted, the retriever selects relevant passages, and the Gemini API generates an answer using that context. Source metadata is used to construct citations.
 
+**Privacy note:** The document collection and index are stored locally, but retrieved passages and the question are sent to Google Gemini for answer generation.
+
+## 🛠️ Technology Stack
+
+| Component           | Technologies                                         |
+| ------------------- | ---------------------------------------------------- |
+| Language            | Python 3.10+                                         |
+| LLM                 | Google Gemini API                                    |
+| RAG Pipeline        | Retrieval, context construction, grounded generation |
+| Vector Database     | ChromaDB                                             |
+| Semantic Embeddings | Sentence Transformers                                |
+| Fallback Retrieval  | TF-IDF                                               |
+| Document Processing | PDF, TXT, Markdown                                   |
+| Frontend            | Streamlit                                            |
+| Testing             | pytest                                               |
+| Configuration       | Python configuration and environment variables       |
+
+## 📂 Project Structure
+
+```text
 rag-research-assistant/
-├── README.md
+├── app.py                    # Streamlit interface
+├── main.py                   # CLI entry point
+├── config.py                 # Application settings
 ├── requirements.txt
 ├── .env.example
-├── config.py                  # Central application settings
-├── main.py                    # CLI: ingest, ask, and chat
-├── app.py                     # Optional Streamlit interface
 ├── src/
-│   ├── ingest.py              # Document loading and chunking
-│   ├── embeddings.py          # Sentence Transformers / TF-IDF backend
-│   ├── vectorstore.py         # ChromaDB storage and search wrapper
-│   ├── retriever.py           # Top-k passage retrieval
-│   ├── llm.py                 # Google Gemini client
-│   ├── rag_pipeline.py        # Retrieval-to-answer orchestration
-│   └── utils.py               # Logging and source formatting helpers
+│   ├── ingest.py             # Loading and chunking
+│   ├── embeddings.py          # Embedding backends
+│   ├── vectorstore.py         # ChromaDB operations
+│   ├── retriever.py           # Relevant passage retrieval
+│   ├── llm.py                 # Gemini integration
+│   ├── rag_pipeline.py        # End-to-end RAG pipeline
+│   └── utils.py               # Logging and source formatting
 ├── scripts/
-│   └── ingest_documents.py    # Standalone ingestion command
+│   └── ingest_documents.py
 ├── data/
-│   └── documents/             # Add source documents here
+│   └── documents/             # Your source documents
 ├── tests/
 │   └── test_pipeline.py
 └── .chroma_db/                # Generated local index
+```
 
-Requirements
+## 🚀 Getting Started
 
-Python 3.10 or newer
+### 1. Clone the repository
 
-A Google Gemini API key
-
-Internet access for:
-
-the first Sentence Transformers model download; and
-
-Gemini answer-generation requests
-
-After the embedding model has been downloaded, document ingestion and retrieval can run locally. Final answer generation still requires access to the Gemini API.
-
-Quick start
-
-1. Open the project
-
+```bash
+git clone https://github.com/Karthik236990/rag-research-assistant.git
 cd rag-research-assistant
+```
 
-2. Create and activate a virtual environment
+Replace the repository URL if your GitHub repository uses a different name.
 
-macOS or Linux:
+### 2. Create a virtual environment
 
-python3 -m venv .venv
-source .venv/bin/activate
+**Windows PowerShell**
 
-Windows PowerShell:
-
+```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
 
-Windows Command Prompt:
+**macOS / Linux**
 
-py -m venv .venv
-.venv\Scripts\activate.bat
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-3. Install dependencies
+### 3. Install dependencies
 
+```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
 
-4. Configure Gemini
+### 4. Configure the Gemini API
 
-Create a Gemini API key in Google AI Studio.
+Create an API key through [Google AI Studio](https://aistudio.google.com/) and configure your environment.
 
-macOS or Linux:
-
-cp .env.example .env
-
-Windows PowerShell:
-
+```powershell
 Copy-Item .env.example .env
+```
 
-Open .env and set your key:
+Add your API key to `.env`:
 
+```env
 GEMINI_API_KEY=your_api_key_here
+```
 
-Do not commit .env or expose the key in screenshots, logs, or shared code.
+Keep your API key private. Never commit `.env` to GitHub.
 
-5. Add documents
+### 5. Add your documents
 
-Copy supported files into:
+Place supported files inside:
 
+```text
 data/documents/
+```
 
-Supported extensions:
+Supported formats: `.pdf`, `.txt`, and `.md`.
 
-Format
+### 6. Build the search index
 
-Extension
-
-Page citations
-
-PDF
-
-.pdf
-
-Yes, when page metadata is available
-
-Plain text
-
-.txt
-
-No
-
-Markdown
-
-.md
-
-No
-
-6. Build the index
-
+```bash
 python main.py ingest
+```
 
-This command loads the documents, creates overlapping chunks, generates embeddings, and persists the index in .chroma_db/. Run it again after adding documents; files already present in the index are skipped.
+The application loads documents, creates overlapping chunks, generates embeddings, and persists the index.
 
-7. Ask a question
+### 7. Ask questions
 
-One-off query:
+**One-time question**
 
-python main.py ask "What are the main risks identified in the report?"
+```bash
+python main.py ask "What are the main findings in the report?"
+```
 
-Interactive terminal session:
+**Interactive terminal chat**
 
+```bash
 python main.py chat
+```
 
-Enter exit to end the session.
+**Launch the web interface**
 
-Streamlit web interface
-
-Start the optional browser interface with:
-
+```bash
 streamlit run app.py
+```
 
-The UI supports document uploads and citation-aware chat. Streamlit normally opens the application automatically; otherwise, use the local URL printed in the terminal.
+## 💬 Example Interaction
 
-Command reference
+**Question**
 
-Command
+> What does the report say about renewable energy adoption?
 
-Purpose
+**Illustrative response**
 
-python main.py ingest
+Renewable energy adoption increased year over year, primarily due to residential solar additions [1]. Wind power growth was limited by permitting delays [2].
 
-Index documents from data/documents/
+**Sources**
 
-python main.py ask "<question>"
+* [1] `energy_report_2024.pdf` — Page 4
+* [2] `energy_report_2024.pdf` — Page 9
 
-Ask one question and print the cited answer
+*This is an illustrative example of the citation format, not a benchmark or a verified result from a test run.*
 
-python main.py chat
+## ⚙️ How It Works
 
-Start an interactive terminal session
+1. **Ingest:** Load documents and split their content into overlapping chunks.
+2. **Embed:** Generate semantic embeddings using Sentence Transformers, with TF-IDF as a fallback.
+3. **Index:** Store searchable vectors and source metadata in ChromaDB.
+4. **Retrieve:** Select the most relevant passages for a user's question.
+5. **Generate:** Send the question and retrieved context to Gemini with instructions to answer from the provided evidence.
+6. **Cite:** Return the response with numbered references mapped to source files and available PDF page numbers.
 
-python scripts/ingest_documents.py
+If the retrieved evidence does not contain an answer, the assistant is instructed to say that the documents do not provide enough information rather than inventing a response.
 
-Run ingestion directly
+## 🧪 Testing
 
-streamlit run app.py
+Run the test suite:
 
-Launch the web interface
-
+```bash
 pytest -q
+```
 
-Run the test suite
+Run the pipeline tests specifically:
 
-Configuration
-
-Application settings are centralized in config.py.
-
-Setting
-
-Description
-
-Guidance
-
-CHUNK_SIZE
-
-Maximum size of each document chunk
-
-Larger chunks preserve more context but may reduce retrieval precision
-
-CHUNK_OVERLAP
-
-Content repeated between adjacent chunks
-
-Use enough overlap to avoid splitting important ideas across boundaries
-
-TOP_K
-
-Number of passages retrieved for each question
-
-Higher values provide more context but increase prompt size and noise
-
-EMBEDDING_MODEL
-
-Sentence Transformers model used for semantic search
-
-The default model is suitable for general English-language retrieval
-
-GEMINI_MODEL
-
-Gemini model used for answer generation
-
-gemini-2.5-flash balances quality and latency
-
-TEMPERATURE
-
-Randomness used during generation
-
-Keep this low for factual, source-grounded answers
-
-Suggested Gemini models:
-
-Model
-
-Best suited for
-
-gemini-2.5-flash
-
-General use; balanced quality, speed, and cost
-
-gemini-2.5-pro
-
-More difficult synthesis and reasoning tasks
-
-gemini-2.5-flash-lite
-
-Lower latency or tighter usage limits
-
-Model availability, pricing, and API limits can change. Check the current Gemini documentation before deploying the application.
-
-How citation grounding works
-
-The ingester records each chunk's source file and its PDF page number when available.
-
-The retriever selects the top TOP_K passages for the user's question.
-
-The pipeline numbers those passages as [1], [2], [3], and so on.
-
-Gemini receives the numbered passages and is instructed to use only that context, cite supported claims, and decline when the answer is absent.
-
-The pipeline appends a Sources section that maps each citation number to its original file and page.
-
-If the retrieved context does not contain enough information, the expected response is a clear statement that the documents do not provide the answer—not a guess from general model knowledge.
-
-Retrieval backends
-
-Sentence Transformers
-
-This is the preferred backend. It produces dense semantic embeddings, which can match passages even when the question uses different wording from the source. The model is downloaded once and then cached locally.
-
-TF-IDF fallback
-
-If Sentence Transformers cannot be imported or initialized, the application falls back to TF-IDF retrieval. TF-IDF is lightweight and local, but it relies more heavily on exact word overlap and may miss semantically related passages.
-
-Running tests
-
-Install the test runner if it is not already included in the project dependencies:
-
-pip install pytest
-
-Run all tests:
-
-pytest -q
-
-Run the pipeline test module only:
-
+```bash
 pytest -q tests/test_pipeline.py
+```
 
-Troubleshooting
+## 🔐 Privacy & Limitations
 
-Problem
+* Source documents and the ChromaDB index are stored locally.
+* Questions and retrieved passages are sent to the Gemini API during answer generation.
+* Semantic embeddings require an initial model download; subsequent local embedding and retrieval operations can run without a network connection, subject to the installed backend.
+* Gemini generation requires internet access and is subject to API quotas and rate limits.
+* Scanned or image-only PDFs require OCR, which is not included by default.
+* TF-IDF may be less effective than semantic embeddings for paraphrased queries.
+* Citations improve traceability but do not guarantee that a generated answer correctly interprets the source.
 
-Resolution
+Do not use confidential documents without appropriate authorization, and verify important conclusions against the original material.
 
-No module named 'chromadb'
+## 🗺️ Roadmap
 
-Activate the project's virtual environment and run pip install -r requirements.txt
+Potential future improvements:
 
-GEMINI_API_KEY not set
+* [ ] Add document-level filtering and metadata-based search.
+* [ ] Support OCR for scanned PDFs.
+* [ ] Add retrieval evaluation and answer-quality metrics.
+* [ ] Improve citation verification and unsupported-claim detection.
+* [ ] Add conversation history and document collection management.
+* [ ] Add Docker-based deployment and continuous integration.
 
-Confirm that .env exists in the project root and contains GEMINI_API_KEY=...
+These are planned improvements, not currently claimed features.
 
-Gemini returns HTTP 429
+## 🤝 Contributing
 
-Wait and retry, check your quota, or use a lower-cost model such as gemini-2.5-flash-lite
+Contributions are welcome.
 
-No relevant documents are found
+1. Create a focused branch.
+2. Make your changes and add relevant tests.
+3. Run `pytest -q`.
+4. Document configuration or behavioral changes.
+5. Submit a pull request describing the implementation and verification steps.
 
-Run python main.py ingest and confirm supported files exist in data/documents/
+## 📄 License
 
-Newly added documents are missing
+Add a `LICENSE` file before distributing the project publicly. Until a license is added, reuse rights are not granted by default.
 
-Run ingestion again after adding the files
+---
 
-Sentence Transformers fails to install or load
+**Built with Python, RAG, ChromaDB, Sentence Transformers, and Google Gemini.**
 
-Use the automatic TF-IDF fallback; retrieval quality may be lower
-
-PDF text is incomplete
-
-The PDF may contain scanned images rather than embedded text; OCR is not included by default
-
-PowerShell blocks virtual-environment activation
-
-Run Set-ExecutionPolicy -Scope Process Bypass, then activate .venv again
-
-Privacy and security
-
-Source documents and the ChromaDB index are stored locally.
-
-The user question and retrieved passages are sent to Google Gemini when an answer is generated.
-
-Do not index documents that you are not authorized to process.
-
-Do not commit .env, .chroma_db/, or sensitive source documents to version control.
-
-Review Google's data-handling terms before using confidential or regulated information.
-
-Current limitations
-
-Image-only and scanned PDFs require OCR before they can be searched effectively.
-
-Retrieval quality depends on document quality, chunk settings, embedding choice, and question wording.
-
-TF-IDF fallback is less effective for paraphrases and conceptual matches.
-
-Inline citations identify retrieved evidence, but users should verify high-impact claims in the original documents.
-
-Gemini generation requires an internet connection and is subject to provider quotas and rate limits.
-
-Responsible use
-
-This project is designed for research assistance, not autonomous decision-making. For legal, medical, financial, compliance, or safety-critical work, inspect the cited source material and involve a qualified professional where appropriate.
-
-Contributing
-
-Contributions are welcome. Before opening a pull request:
-
-Create a focused branch.
-
-Add or update tests for behavioral changes.
-
-Run pytest -q locally.
-
-Keep configuration changes documented in this README.
-
-Describe the problem, implementation, and verification steps in the pull request.
-
-License
-
-Add a LICENSE file before distributing the project publicly, and update this section with the selected license. Until then, no reuse rights are granted by default.
+*Exploring practical applications of retrieval-augmented generation, document intelligence, and source-grounded AI systems.*
